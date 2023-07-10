@@ -2,6 +2,7 @@
 const express = require('express');
 const router = require('express-promise-router');
 const { createForm } = require('./src/formSubmit');
+const {sendResponse} = require('./src/formResponse');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const bodyParser = require('body-parser');
@@ -12,14 +13,14 @@ const mongoose = require("mongoose");
 const connectDB = require("./src/db");
 
 const { idCollection } = require('./src/formSubmit');
+const { responseId } = require('./src/formResponse');
 
 const { SpheronClient, ProtocolEnum } = require('@spheron/storage');
 
 const fs = require('fs');
 
 // const spheronToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcGlLZXkiOiJjYmRhZmRmN2YwYzkxODhjNWU2NmMzZjcxYzA5ODY1MGFkODcyMjRiOTY5ZjFjNzE1ZjIyYjUxNDdjZjNlOGE3YjNiNGIzNjlmNmUyYWMyNDY5MmNjYzVmMDU1OTJiMGY1OWVlMjI3MTI5YTYyYmM2ODQ1NjlmMzA1ZDY3YjFkZSIsImlhdCI6MTY4MjMyOTI1MCwiaXNzIjoid3d3LnNwaGVyb24ubmV0d29yayJ9.r5AvsUSs1o5HGMe5jonEizBR062yr2uVQ2eG0V64yec";
-const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcGlLZXkiOiI3NWZjMDA3MTFkNzA3MGZmOTc1MDliNGE0OTNmOWZmOWE2N2U5MWFmYjkxODZiMjQ4YTFmMjhhNDg3OTM2ZjdhYmViOTlhNTllZTYwZDJmMWJmYmYxNjU0M2FiZDU3MTliMzAxMzQ3YTJlMDk1MTFjZjRmZDg5NWI4ZTNkZTQzYiIsImlhdCI6MTY4MjUxNjI0NCwiaXNzIjoid3d3LnNwaGVyb24ubmV0d29yayJ9.KiJH_8TaOe8--jjJ9fddnPGq2FyC4szbLa-lPe0gWy0";
-
+const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcGlLZXkiOiJhZTU3YmZhNTNiYWU4ZDdiMzA0OTZjYzdiNzNmNWY1MWE2Njg5ZDk2YmVmYzM5ZTM1MDgzOGJlODViNGE0ODViMTRkNTZhMzBkZDEzNmViZjUyOGM2NmQzZDIzZTZlN2I2ZTE0YjcwZWNhNjZmNGE1YWJhOWYwMTYyYzBjYWMxZCIsImlhdCI6MTY4Nzk1MjY3NywiaXNzIjoid3d3LnNwaGVyb24ubmV0d29yayJ9.QPKPNurh4U_D_YezcNR7YBGZ7BOdWtalCsCknfeQgEY";
 const client = new SpheronClient({ token });
 
 
@@ -49,19 +50,38 @@ route.post("/createForm", async (req, res) => {
 
   console.log('body', req.query.form);
 
-  await createForm(req.body);
+   const uploadedFormId= await createForm(req.body);
+   //console.log("Uploaded FormId: ", );
+//  return res.status(404).json({ error: 'Id not found' });
+  res.status(200).json({generateFormId: uploadedFormId})
+
+})
+
+
+route.post("/sendResponse", async (req, res) => {
+
+  console.log('req.body = ', req.body);
+
+  console.log('body', req.query.form);
+
+  await sendResponse(req.body);
 
   res.status(200).send("Health Status Okay!");
 
 })
 
+
+
+
+
+
 //get all the forms uploaded.
 
 
-route.get("/uploads", (req,res)=>{
+route.get("/uploads/:id", (req,res)=>{
+  const userId = req.params.id;
 
-
-  idCollection.find()
+  idCollection.find({ userId: userId })
   .then((ids) => {
     res.json(ids);
   })
@@ -85,10 +105,6 @@ route.delete("/delete/:id", (req,res)=>{
 })
 
 
-
-
-
-
 route.get('/fetchdata/:id', async (req, res) => {
   const id = req.params.id;
   console.log("uploaded id : here : ", id);
@@ -108,6 +124,17 @@ route.get('/fetchdata/:id', async (req, res) => {
   res.send(objectToSend);
 });
 
+route.get('/allresponses/:id', async (req, res)=>{
+  const questionId = req.params.id;
+  responseId.find({ questionId : questionId }) 
+  .then((ids) => {
+    res.json(ids);
+  })
+  .catch((err) => {
+    res.status(500).json({ error: 'Failed to retrieve ids' });
+  });
+})
+
 //login Part started
 
 
@@ -116,6 +143,7 @@ const JWT_SECRET =
 
 
 const logs = new mongoose.Schema({
+   userId : String,
    email:String,
    password : String,
    user : String,
@@ -139,7 +167,7 @@ route.post('/login', async (req, res) => {
     });
 
     if (res.status(201)) {
-      return res.json({ status: "ok", data: token });
+      return res.json({ status: "ok", data: token ,  userId: user.userId});
     } else {
       return res.json({ error: "error" });
     }
@@ -152,7 +180,7 @@ route.post('/login', async (req, res) => {
 
 //register
 route.post("/register", async (req, res) => {
-  const {  email, password, user, name } = req.body;
+  const {  userId ,email, password, user, name } = req.body;
 
   const encryptedPassword = await bcrypt.hash(password, 10);
   try {
@@ -163,12 +191,15 @@ route.post("/register", async (req, res) => {
     }
     await LogAdmin.create({
    
+      userId,
       email,
       password: encryptedPassword,
       user,
       name
+
+      
     });
-    res.send({ status: "ok" });
+    res.json({userId : userId});
   } catch (error) {
     console.log(error);
     res.send({status:"error"});
@@ -179,7 +210,30 @@ route.post("/register", async (req, res) => {
 
 
 
+//VIPIN: Validate API Logic if the token is available or not
+//Below api will validate the token exists or not applicable for external users
+route.get('/validatetoken/:id', async (req, res) => {
+  const id = req.params.id;
+  console.log("external id : here : ", id);
+  
+  const response = await client.getUpload(id);
+  // console.log("validate response : ", !response);
 
+  let objectToSend = {
+    id: id,
+    message: "Data not available",
+ };
+  if(Object.keys(response).length>0){
+     objectToSend = {
+      ...objectToSend,
+      message: "Data available exist",
+   };
+  }
+  
+ console.log("This is the object to send : ", objectToSend);
+
+  res.send(objectToSend);
+});
 
 
 

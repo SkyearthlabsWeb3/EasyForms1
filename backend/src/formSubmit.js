@@ -12,6 +12,7 @@ connectDB();
 
 const collect = new mongoose.Schema({
   id : String,
+  heading : String,
   userId: String,
 });
 
@@ -20,15 +21,20 @@ const idCollection = mongoose.model('model', collect);
 
 
 async function createForm(json) {
+  
   console.log('json in create form ', json);
+  const heading  = json.heading;
+
   const uploadId = await upload(json);
+
+  
 
    // upload
   
 
 
    console.log("Uploaded id in formsubmit : ", uploadId);
-  const myId = new idCollection({ id: uploadId })
+  const myId = new idCollection({ id: uploadId , heading : heading, userId: json.userId})
 
 
 
@@ -50,10 +56,12 @@ myId.save()
   console.log(JSON.stringify(strigifyCreatorData));
   fs.writeFileSync('./creator.json', JSON.stringify(creator), { 'flag': 'wx' });
 
+  return uploadId;
 
 }
 
 module.exports = {
   createForm,
   idCollection,
+ 
 };
