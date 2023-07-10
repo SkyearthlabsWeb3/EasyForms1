@@ -34,6 +34,8 @@ const Full = () => {
     setPassword("");
     setEmail("");
     setUser("");
+    
+    setErr(null);
   }
   const handleNameChange = (event) => {
     setName(event.target.value);
@@ -54,7 +56,7 @@ const Full = () => {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-
+    setErr(null);
     // console.log(username, password);
     fetch("http://localhost:3000/login", {
       method: "POST",
@@ -72,7 +74,12 @@ const Full = () => {
       .then((res) => res.json())
       .then((data) => {
         console.log(data, "userRegister");
-        if (data.status === "ok") {
+
+        if(data.error==="User Not found"){
+          toast.error(data.error);
+          setErr(data.error);
+        }
+        else{
           
           const user = {
             email: email,
@@ -83,11 +90,7 @@ const Full = () => {
            toast.success("Login Successfully!!") 
 
           navigate("/main");
-        } else {
-          toast.error("Invalid Login!!!");
-          setErr(data.error);
-          
-        }
+        } 
        
       });
   };
@@ -117,20 +120,25 @@ const Full = () => {
       .then((res) => res.json())
       .then((data) => {
         console.log(data, "userRegister");
-        if (data.status === "ok") {
+        console.log("dataStatus: ", data.status);
+
+        if(data.error=== "User Exists"){
+          toast.error("Error while registering.");
+          setErr(data.error);
+        }
+        else {
           // alert("Registration Successful");
-          toast.success("Registration Successful");
+          
           navigate("/");
           const user = {
             email: email,
             userId : userId
           };
           localStorage.setItem("currUser", JSON.stringify(user));
+          toast.success("Registration Successful");
           setCreate(false);
-        } else {
-          toast.error("Error while registering.");
-          setErr(data.error);
-        }
+          resetFields();
+        } 
         
       });
   };
